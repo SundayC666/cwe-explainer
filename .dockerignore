@@ -1,0 +1,36 @@
+# Secrets — never copy these into an image
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Virtual environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.uv-cache/
+
+# VCS and editor noise
+.git/
+.gitignore
+.github/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Docs and build artifacts not needed at runtime
+README.md
+Dockerfile
+.dockerignore
+build/
+dist/
+*.log
+gradio_cached_examples/
+flagged/

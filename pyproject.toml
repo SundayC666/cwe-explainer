@@ -1,0 +1,18 @@
+[project]
+name = "cwe-vulnerability-explainer"
+version = "0.1.0"
+description = "LLM-assisted CWE triage aid with a local validation layer"
+readme = "README.md"
+requires-python = ">=3.11"
+
+dependencies = [
+    "openai>=1.68.0",
+    "python-dotenv>=1.0.1",
+    "gradio>=5.0.0",
+]
+
+[tool.uv]
+# This is an application, not a distributable library: there is no package to
+# build or install, only scripts to run inside the environment. Without this,
+# `uv sync` would look for a build backend and fail.
+package = false

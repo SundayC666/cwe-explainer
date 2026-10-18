@@ -1,0 +1,37 @@
+# Secrets — never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Python caches and build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.uv-cache/
+
+# Note: uv.lock IS committed on purpose — `uv sync --frozen` in the
+# Dockerfile depends on it being present and in version control.
+
+# Gradio runtime output
+gradio_cached_examples/
+flagged/
+*.log
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
