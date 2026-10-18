@@ -238,6 +238,10 @@ class Summary:
     # they are just held to a weaker standard of verification.
     unverified: int = 0
     reason_counts: dict[str, int] = field(default_factory=dict)
+    # True when the whole response was unusable. Kept separate from the
+    # counts so a legitimate empty array ("no vulnerabilities") is not
+    # reported as a parse failure.
+    parse_failed: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +334,9 @@ def normalize_line_numbers(raw: Any) -> tuple[list[int], str | None]:
             return [], "line_numbers contains a boolean"
         if isinstance(item, int):
             numbers.append(item)
-        elif isinstance(item, str) and item.strip().lstrip("-").isdigit():
+        # isdecimal, not isdigit: isdigit accepts characters like "²" that
+        # int() then refuses, which would crash validation.
+        elif isinstance(item, str) and item.strip().lstrip("-").isdecimal():
             numbers.append(int(item.strip()))
         else:
             return [], f"line_numbers contains a non-integer value: {item!r}"
@@ -512,8 +518,9 @@ def validate_findings(
             rejected.append(
                 RejectedFinding(
                     candidate,
-                    f"{label}: {cwe_id} is not on the verified CWE allowlist — "
-                    "treating it as a hallucinated identifier.",
+                    f"{label}: {cwe_id} is neither on the curated CWE allowlist "
+                    "nor in the OWASP Top 10:2025 mapping — treating it as a "
+                    "hallucinated identifier.",
                 )
             )
             continue
@@ -619,6 +626,7 @@ def summarize(
             1 for finding in accepted if finding.cwe_id not in CWE_ALLOWLIST
         ),
         reason_counts=reason_counts,
+        parse_failed=parse_failed,
     )
 
 
@@ -631,10 +639,12 @@ def _reason_bucket(reason: str) -> str:
         return "line number out of range"
     if "duplicate" in lowered:
         return "duplicate finding"
-    if "severity" in lowered:
-        return "invalid severity"
+    # Checked before "severity": a finding missing the severity field names it
+    # in the reason, and that is a missing field, not an invalid value.
     if "missing required field" in lowered:
         return "missing required field"
+    if "severity" in lowered:
+        return "invalid severity"
     if "line_numbers" in lowered:
         return "malformed line_numbers"
     return "schema violation"
@@ -762,11 +772,15 @@ SEVERITY_MARK = {
 
 def render_summary(summary: Summary, model: str, notes: Iterable[str]) -> str:
     """Render the always-visible summary line."""
-    if summary.returned == 0 and summary.rejected == 0 and summary.accepted == 0:
+    if summary.parse_failed:
         headline = (
             f"**`{model}` returned 0 usable findings.** "
             "The response could not be parsed as JSON."
         )
+    elif summary.returned == 0:
+        # A well-formed empty array. Per the README this is not evidence the
+        # code is safe — only that the model reported nothing.
+        headline = f"**`{model}` reported no findings.**"
     else:
         # "unverified" is qualified inside the passed count rather than listed
         # alongside "filtered out", because those findings were kept — leaving
@@ -877,6 +891,12 @@ def backup(path):
 '''
 
 
+# The built-in footer renders in the browser's language, which would make a
+# screen recording inconsistent — hide it. Gradio 6 takes css in launch(), not
+# in the Blocks constructor.
+HIDE_FOOTER_CSS = "footer { display: none !important; }"
+
+
 def build_interface(config: Config, client: OpenAI) -> gr.Blocks:
     """Construct the Gradio UI."""
 
@@ -914,12 +934,7 @@ def build_interface(config: Config, client: OpenAI) -> gr.Blocks:
             render_rejected(rejected),
         )
 
-    # The built-in footer renders in the browser's language, which would make
-    # a screen recording inconsistent — hide it.
-    with gr.Blocks(
-        title="CWE Vulnerability Explainer",
-        css="footer { display: none !important; }",
-    ) as demo:
+    with gr.Blocks(title="CWE Vulnerability Explainer") as demo:
         gr.Markdown(
             "# CWE Vulnerability Explainer\n"
             "Paste a code snippet. It is sent to an LLM through the Duke AI "
@@ -980,7 +995,7 @@ def main() -> None:
     demo = build_interface(config, client)
     # 0.0.0.0 so the app is reachable from outside the container, and from a
     # Hugging Face Docker Space.
-    demo.launch(server_name="0.0.0.0", server_port=config.port)
+    demo.launch(server_name="0.0.0.0", server_port=config.port, css=HIDE_FOOTER_CSS)
 
 
 if __name__ == "__main__":

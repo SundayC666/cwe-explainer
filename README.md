@@ -79,20 +79,28 @@ findings that got dropped along with why. Each candidate goes through:
 **1. Parsing.** Code fences get stripped, and if the model buried the array in
 prose the widest `[...]` or `{...}` span is pulled out. A response that never
 parses is reported as a parse failure instead of taking the app down. An array
-nested under `findings` / `vulnerabilities` / `results` also works.
+nested under `findings` / `vulnerabilities` / `results` / `issues` also works,
+and so does a single finding returned as a lone object. A valid empty array is
+reported as "no findings", not as a parse failure.
 
 **2. Schema.** All seven fields have to be there (`vulnerability_type`,
 `cwe_id`, `owasp_category`, `severity`, `line_numbers`, `explanation`,
 `remediation`) with the right types.
 
-**3. CWE tier.** The ID gets normalized (`89`, `cwe_89`, `CWE 89` all become
-`CWE-89`), then sorted into one of three buckets:
+**3. CWE tier.** The ID gets normalized (the strings `"89"`, `"cwe_89"`,
+`"CWE 89"` all become `CWE-89`; a bare JSON number like `89` fails the schema
+check, since `cwe_id` has to be a string), then sorted into one of three
+buckets:
 
 - On my curated allowlist of ~57 entries. Accepted, relabeled with the official
   MITRE name instead of whatever the model called it.
 - Not on the allowlist but in `CWE_TO_OWASP_2025`. Accepted, flagged as
   unverified. It's a real CWE, but I haven't checked its name or severity.
 - In neither. Rejected as a probable hallucination.
+
+Ten allowlist entries (memory-safety issues, resource exhaustion, ReDoS, CSV
+injection and a few others) have no 2025 OWASP category. They're still tier 1;
+their OWASP label is just passed through as the model gave it.
 
 That middle bucket exists because of a bug I hit while testing. The original
 version rejected anything off the allowlist, and it threw away a correct
